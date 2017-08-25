@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Scheldegetijden</string>
+    <string name="edit_message">Voeg boodschap in</string>
+    <string name="button_send">Verzenden</string>
+</resources>
