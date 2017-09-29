@@ -1,5 +1,9 @@
 <resources>
     <string name="app_name">Scheldegetijden</string>
-    <string name="edit_message">Voeg boodschap in</string>
-    <string name="button_send">Verzenden</string>
+    <string name="no_data_for_date">Geen gegevens voor deze datum.</string>
+    <string name="no_connection">Kan geen verbinding maken.</string>
+    <string name="sourceError">Kan bron niet lezen. Slechte verbinding?</string>
+    <string name="ok">OK</string>
+    <string name="high_header">Hoog</string>
+    <string name="low_header">Laag</string>
 </resources>

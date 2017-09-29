@@ -1,5 +1,9 @@
 <resources>
     <string name="app_name">Scheldt tides</string>
-    <string name="edit_message">Enter a message</string>
-    <string name="button_send">Send</string>
+    <string name="no_data_for_date">No data can be found for this date.</string>
+    <string name="no_connection">No internet connection can be established.</string>
+    <string name="sourceError">Error interpreting source. Bad connection?</string>
+    <string name="ok">OK</string>
+    <string name="high_header">High</string>
+    <string name="low_header">Low</string>
 </resources>
