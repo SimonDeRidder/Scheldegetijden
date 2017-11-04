@@ -1,11 +1,15 @@
 package com.example.ephron.scheldegetijden;
 
+import java.io.Serializable;
 import java.util.Calendar;
 
-class SimpleDate
+class SimpleDate implements Serializable
 {
+    @SuppressWarnings("CanBeFinal")
     int YEAR;
+    @SuppressWarnings("CanBeFinal")
     int MONTH;
+    @SuppressWarnings("CanBeFinal")
     int DAY;
 
     SimpleDate(int year, int month, int day)

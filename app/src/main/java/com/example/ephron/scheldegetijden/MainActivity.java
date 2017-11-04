@@ -37,9 +37,9 @@ import java.util.Map;
 
 public class MainActivity extends AppCompatActivity
 {
-    private Map<SimpleDate, List<Pair<String,List<List<Pair<Integer,Integer>>>>>> cache;
+    private Map<SimpleDate, List<SPair<String,List<List<SPair<Integer,Integer>>>>>> cache;
     private Calendar currentCalendar = Calendar.getInstance();
-    private DatePickerDialog.OnDateSetListener dateSetListener = new DatePickerDialog.OnDateSetListener()
+    private final DatePickerDialog.OnDateSetListener dateSetListener = new DatePickerDialog.OnDateSetListener()
     {
         @Override
         public void onDateSet(DatePicker view, int year, int monthOfYear, int dayOfMonth)
@@ -85,19 +85,104 @@ public class MainActivity extends AppCompatActivity
     @Override
     protected void onPause()
     {
-        super.onPause();
         saveCache();
+        super.onPause();
     }
 
     @SuppressWarnings("unchecked")
-    public void readCache()
+    private void readCache()
     {
         File cacheDir = getCacheDir();
         File cacheFile = new File(cacheDir,"cache.ser");
         try
         {
             ObjectInputStream is = new ObjectInputStream(new FileInputStream(cacheFile));
-            cache = (Map<SimpleDate, List<Pair<String,List<List<Pair<Integer,Integer>>>>>>) is.readObject();
+            Object temp = is.readObject();
+            boolean corrupt = true;
+            if (temp instanceof Map)
+            {
+                corrupt = false;
+                Map temp2 = (Map) temp;
+                if (!temp2.isEmpty())
+                {
+                    Object[] temp3 = temp2.keySet().toArray();
+                    if (!(temp3[0] instanceof SimpleDate))
+                    {
+                        corrupt = true;
+                    }
+                    else
+                    {
+                        SimpleDate temp4 = (SimpleDate) temp3[0];
+                        if (!(temp2.get(temp4) instanceof List))
+                        {
+                            corrupt = true;
+                        }
+                        else
+                        {
+                            List temp5 = (List) temp2.get(temp4);
+                            if (!temp5.isEmpty())
+                            {
+                                if (!(temp5.get(0) instanceof SPair))
+                                {
+                                    corrupt = true;
+                                }
+                                else
+                                {
+                                    SPair temp6 = (SPair) temp5.get(0);
+                                    if (!(temp6.first instanceof String))
+                                    {
+                                        corrupt = true;
+                                    } else if (!(temp6.second instanceof List))
+                                    {
+                                        corrupt = true;
+                                    }
+                                    else
+                                    {
+                                        List temp7 = (List) temp6.second;
+                                        if (!temp7.isEmpty())
+                                        {
+                                            if (!(temp7.get(0) instanceof List))
+                                            {
+                                                corrupt = true;
+                                            }
+                                            else
+                                            {
+                                                List temp8 = (List) temp7.get(0);
+                                                if (!temp8.isEmpty())
+                                                {
+                                                    if (!(temp8.get(0) instanceof SPair))
+                                                    {
+                                                        corrupt = true;
+                                                    }
+                                                    else
+                                                    {
+                                                        SPair temp9 = (SPair) temp8.get(0);
+                                                        if (!((temp9.first instanceof Integer)
+                                                                && (temp9.second instanceof Integer)))
+                                                        {
+                                                            corrupt = true;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (!corrupt)
+            {
+                cache = (Map<SimpleDate, List<SPair<String,List<List<SPair<Integer,Integer>>>>>>) temp;
+            }
+            else
+            {
+                //noinspection ResultOfMethodCallIgnored
+                cacheFile.delete();
+                cache = new HashMap<>(5);
+            }
             is.close();
         } catch (IOException | ClassNotFoundException e)
         {// file not found or unrecognised, initialise empty cache
@@ -106,7 +191,7 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    public void saveCache()
+    private void saveCache()
     {
         if (!cache.isEmpty())
         {
@@ -136,13 +221,13 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    public void flushOldCache()
+    private void flushOldCache()
     {
         Calendar today = Calendar.getInstance();
-        Iterator<Map.Entry<SimpleDate, List<Pair<String,List<List<Pair<Integer,Integer>>>>>>> it = cache.entrySet().iterator();
+        Iterator<Map.Entry<SimpleDate, List<SPair<String,List<List<SPair<Integer,Integer>>>>>>> it = cache.entrySet().iterator();
         while (it.hasNext())
         {
-            Map.Entry<SimpleDate, List<Pair<String,List<List<Pair<Integer,Integer>>>>>> pair = it.next();
+            Map.Entry<SimpleDate, List<SPair<String,List<List<SPair<Integer,Integer>>>>>> pair = it.next();
             if (pair.getKey().compare(today)<-1)
             {// delete entries more than a day old
                 it.remove();
@@ -150,61 +235,90 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    public void onDateSelect()
+    private void mergeCache(Map<SimpleDate, List<SPair<String, List<List<SPair<Integer, Integer>>>>>> newCache)
     {
-        DateFormat dateFormat = android.text.format.DateFormat.getLongDateFormat(getApplicationContext());
-        ((EditText) findViewById(R.id.dateDisplay)).setText(dateFormat.format(currentCalendar.getTime()));
-        SimpleDate displayDate = new SimpleDate(currentCalendar.get(Calendar.YEAR),
-                                                currentCalendar.get(Calendar.MONTH),
-                                                currentCalendar.get(Calendar.DAY_OF_MONTH));
-        List<Pair<String,List<List<Pair<Integer,Integer>>>>> table = cache.get(displayDate);
-        if (table==null)
+        for (Map.Entry<SimpleDate, List<SPair<String, List<List<SPair<Integer, Integer>>>>>> mapEntry : newCache.entrySet())
         {
-            new DataRetriever().execute("http://www.waterinfo.be/default.aspx?path=NL/HIC/GetijverwachtingenPopup&");
-        } else
-        {
-            displayTable(table);
+            SimpleDate key = mapEntry.getKey();
+            List<SPair<String, List<List<SPair<Integer, Integer>>>>> value = mapEntry.getValue();
+            if (cache.containsKey(key))
+            {// merge values
+                for (int a = 0; a < value.size(); a++)
+                {
+                    int index = -1;
+                    List<SPair<String, List<List<SPair<Integer, Integer>>>>> cacheList = cache.get(key);
+                    SPair<String, List<List<SPair<Integer, Integer>>>> currentItem = value.get(a);
+                    for (int b = 0; b < cacheList.size(); b++)
+                    {
+                        if (cacheList.get(b).first.compareTo(currentItem.first)==0)
+                        {
+                            index = b;
+                            break;
+                        }
+                    }
+                    if (index>-1)
+                    {// key found, add times
+                        List<List<SPair<Integer, Integer>>> cacheListList = cacheList.get(index).second;
+                        for (int b=0; b<2; b++)
+                        {
+                            List<SPair<Integer, Integer>> currentTimeList = currentItem.second.get(b);
+                            for (int c=0; c<currentTimeList.size(); c++)
+                            {
+                                SPair<Integer, Integer> currentTime = currentTimeList.get(c);
+                                if (cacheListList.get(b).indexOf(currentTime)==-1)
+                                {
+                                    cacheListList.get(b).add(currentTime);
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        cacheList.add(a,currentItem);
+                    }
+                }
+            } else
+            {// add value
+                cache.put(key, value);
+            }
         }
     }
 
-    private void tryUpdate(String html)
+    private void onDateSelect()
     {
+        DateFormat dateFormat = android.text.format.DateFormat.getLongDateFormat(getApplicationContext());
+        ((EditText) findViewById(R.id.dateDisplay)).setText(dateFormat.format(currentCalendar.getTime()));
+        new DataRetriever().execute("http://www.waterinfo.be/default.aspx?path=NL/HIC/GetijverwachtingenPopup&");
+    }
+
+    private void updateDateDisplay(String html)
+    {
+        SimpleDate displayDate = new SimpleDate(currentCalendar.get(Calendar.YEAR),
+                currentCalendar.get(Calendar.MONTH),
+                currentCalendar.get(Calendar.DAY_OF_MONTH));
         if (html.compareTo("")==0)
         {
-            AlertDialog.Builder builder = new AlertDialog.Builder(this);
-            builder.setMessage(R.string.no_connection);
-            builder.setPositiveButton(R.string.ok, new DialogInterface.OnClickListener(){
-                public void onClick(DialogInterface dialog, int id) {}//do nothing
-            });
-            builder.create().show();
+            List<SPair<String,List<List<SPair<Integer,Integer>>>>> table = cache.get(displayDate);
+            if (table==null)
+            {
+                displayTable(null, getResources().getString(R.string.no_connection)+
+                        System.getProperty("line.separator")+getResources().getString(R.string.no_data_for_date));
+            }
+            else
+            {
+                displayTable(table, getResources().getString(R.string.no_connection));
+            }
         }
         else
         {
             parseHtml(html);
-            SimpleDate displayDate = new SimpleDate(currentCalendar.get(Calendar.YEAR),
-                                                    currentCalendar.get(Calendar.MONTH),
-                                                    currentCalendar.get(Calendar.DAY_OF_MONTH));
-            List<Pair<String, List<List<Pair<Integer, Integer>>>>> table = cache.get(displayDate);
+            List<SPair<String, List<List<SPair<Integer, Integer>>>>> table = cache.get(displayDate);
             if (table == null)
             {
-                AlertDialog.Builder builder = new AlertDialog.Builder(this);
-                builder.setMessage(R.string.no_data_for_date);
-                builder.setPositiveButton(R.string.ok, new DialogInterface.OnClickListener()
-                {
-                    public void onClick(DialogInterface dialog, int id) {}//do nothing
-                });
-                builder.create().show();
-                // try reverting to today
-                Calendar temp = Calendar.getInstance();
-                SimpleDate temp2 = new SimpleDate(temp.get(Calendar.YEAR), temp.get(Calendar.MONTH), temp.get(Calendar.DAY_OF_MONTH));
-                if (temp2.compare(currentCalendar) != 0)
-                {
-                    currentCalendar = temp;
-                    onDateSelect();
-                }
+                displayTable(null, getResources().getString(R.string.no_data_for_date));
             } else
             {
-                displayTable(table);
+                displayTable(table,"");
             }
         }
     }
@@ -215,11 +329,11 @@ public class MainActivity extends AppCompatActivity
         int startInd = html.indexOf("<h2>");
         int endInd, tempInd, dataPoint1, dataPoint2, dataPoint3;
         String tempStr;
-        Map<SimpleDate, List<Pair<String, List<List<Pair<Integer, Integer>>>>>> tempCache = new HashMap<>(3);
+        Map<SimpleDate, List<SPair<String, List<List<SPair<Integer, Integer>>>>>> tempCache = new HashMap<>(3);
         SimpleDate baseDate;
         List<String> tempNames = new ArrayList<>(7);
         List<SimpleDate> tempDates = new ArrayList<>(7);
-        List<Pair<Integer, Integer>> tempTimes = new ArrayList<>(7);
+        List<SPair<Integer, Integer>> tempTimes = new ArrayList<>(7);
         if (startInd == -1)
         {
             sourceError = true;
@@ -375,7 +489,7 @@ public class MainActivity extends AppCompatActivity
                             sourceError = true;
                             break;
                         }
-                        tempTimes.add(new Pair<>(dataPoint1, dataPoint2));
+                        tempTimes.add(new SPair<>(dataPoint1, dataPoint2));
                         html = html.substring(endInd + 5).trim();
                         startInd = html.indexOf("<td style=\"border: 1px solid #dddddd\" align=\"right\">");
                         tempInd = html.indexOf("</tr>");
@@ -413,17 +527,17 @@ public class MainActivity extends AppCompatActivity
                             }
                             if (!found)
                             {
-                                tempCache.get(tempDates.get(a)).add(new Pair<String, List<List<Pair<Integer, Integer>>>>(tempNames.get(a), new ArrayList<List<Pair<Integer, Integer>>>(2)));
-                                tempCache.get(tempDates.get(a)).get(tempCache.get(tempDates.get(a)).size() - 1).second.add(new ArrayList<Pair<Integer, Integer>>());
-                                tempCache.get(tempDates.get(a)).get(tempCache.get(tempDates.get(a)).size() - 1).second.add(new ArrayList<Pair<Integer, Integer>>());
+                                tempCache.get(tempDates.get(a)).add(new SPair<String, List<List<SPair<Integer, Integer>>>>(tempNames.get(a), new ArrayList<List<SPair<Integer, Integer>>>(2)));
+                                tempCache.get(tempDates.get(a)).get(tempCache.get(tempDates.get(a)).size() - 1).second.add(new ArrayList<SPair<Integer, Integer>>());
+                                tempCache.get(tempDates.get(a)).get(tempCache.get(tempDates.get(a)).size() - 1).second.add(new ArrayList<SPair<Integer, Integer>>());
                                 tempCache.get(tempDates.get(a)).get(tempCache.get(tempDates.get(a)).size() - 1).second.get(highInd).add(tempTimes.get(a));
                             }
                         } else
                         {
-                            tempCache.put(tempDates.get(a), new ArrayList<Pair<String, List<List<Pair<Integer, Integer>>>>>(7));
-                            tempCache.get(tempDates.get(a)).add(new Pair<String, List<List<Pair<Integer, Integer>>>>(tempNames.get(a), new ArrayList<List<Pair<Integer, Integer>>>(2)));
-                            tempCache.get(tempDates.get(a)).get(tempCache.get(tempDates.get(a)).size() - 1).second.add(new ArrayList<Pair<Integer, Integer>>());
-                            tempCache.get(tempDates.get(a)).get(tempCache.get(tempDates.get(a)).size() - 1).second.add(new ArrayList<Pair<Integer, Integer>>());
+                            tempCache.put(tempDates.get(a), new ArrayList<SPair<String, List<List<SPair<Integer, Integer>>>>>(7));
+                            tempCache.get(tempDates.get(a)).add(new SPair<String, List<List<SPair<Integer, Integer>>>>(tempNames.get(a), new ArrayList<List<SPair<Integer, Integer>>>(2)));
+                            tempCache.get(tempDates.get(a)).get(tempCache.get(tempDates.get(a)).size() - 1).second.add(new ArrayList<SPair<Integer, Integer>>());
+                            tempCache.get(tempDates.get(a)).get(tempCache.get(tempDates.get(a)).size() - 1).second.add(new ArrayList<SPair<Integer, Integer>>());
                             tempCache.get(tempDates.get(a)).get(tempCache.get(tempDates.get(a)).size() - 1).second.get(highInd).add(tempTimes.get(a));
                         }
                     }
@@ -449,7 +563,7 @@ public class MainActivity extends AppCompatActivity
             return;
         }
         // merge with cache
-        cache.putAll(tempCache);
+        mergeCache(tempCache);
     }
 
     private class DataRetriever extends AsyncTask<String, Void, String>
@@ -481,119 +595,146 @@ public class MainActivity extends AppCompatActivity
         {
             if (this.exception==null)
             {
-                tryUpdate(html);
+                updateDateDisplay(html);
             } else
             {
-                tryUpdate("");
+                updateDateDisplay("");
             }
         }
     }
 
-    private void displayTable(List<Pair<String,List<List<Pair<Integer,Integer>>>>> table)
+    private void displayTable(List<SPair<String,List<List<SPair<Integer,Integer>>>>> table, String message)
     {
         GridLayout grid = (GridLayout) findViewById(R.id.gridDisplay);
         grid.removeAllViews();
-        Pair<List<String>,List<Pair<Integer,List<String>>>> sortedTable = sortAndArrange(table);
-        grid.setColumnCount(sortedTable.second.size()+1);
-        grid.setRowCount(sortedTable.first.size()+2);
         grid.setForegroundGravity(Gravity.CENTER);
-        // set names
-        for (int a=0; a<sortedTable.first.size(); a++)
+        if (table==null || table.isEmpty())
+        {// display only message
+            grid.setColumnCount(1);
+            grid.setRowCount(1);
+            TextView messageView = new TextView(this);
+            messageView.setText(message);
+            messageView.setGravity(Gravity.CENTER);
+            messageView.setTextColor(ContextCompat.getColor(this, R.color.error));
+            grid.addView(messageView, new GridLayout.LayoutParams(GridLayout.spec(0,1),GridLayout.spec(0,1, (float) 1.0)));
+        }
+        else
         {
-            TextView name = new TextView(this);
-            name.setText(sortedTable.first.get(a));
-            if (a%2==1)
+            Pair<List<String>, List<Pair<Integer, List<String>>>> sortedTable = sortAndArrange(table);
+            grid.setColumnCount(sortedTable.second.size() + 1);
+            int messOffs = 0;
+            if (message.compareTo("")==0)
             {
-                name.setBackgroundColor(ContextCompat.getColor(this, R.color.nameDarkColor));
+                grid.setRowCount(sortedTable.first.size() + 2);
             }
             else
             {
-                name.setBackgroundColor(ContextCompat.getColor(this, R.color.nameLightColor));
+                grid.setRowCount(sortedTable.first.size() + 3);
+                messOffs = 1;
+                TextView messageView = new TextView(this);
+                messageView.setText(message);
+                messageView.setGravity(Gravity.CENTER);
+                messageView.setTextColor(ContextCompat.getColor(this, R.color.error));
+                grid.addView(messageView, new GridLayout.LayoutParams(GridLayout.spec(0,1),GridLayout.spec(0,sortedTable.second.size() + 1, (float) 1.0)));
             }
-            name.setGravity(Gravity.CENTER);
-            name.setTypeface(name.getTypeface(), 1);
-            name.setTextColor(ContextCompat.getColor(this, R.color.black));
-            grid.addView(name,new GridLayout.LayoutParams(GridLayout.spec(2+a, 1), GridLayout.spec(0, 1, (float)1.0)));
-        }
-        // set rest of table column by column
-        for (int a=0; a<sortedTable.second.size(); a++)
-        {
-            // set header
-            TextView header = new TextView(this);
-            int lightColor, darkColor;
-            if (sortedTable.second.get(a).first==0)
+            // set names
+            for (int a = 0; a < sortedTable.first.size(); a++)
             {
-                header.setText(R.string.high_header);
-                lightColor = ContextCompat.getColor(this, R.color.highLightColor);
-                darkColor = ContextCompat.getColor(this, R.color.highDarkColor);
-            }
-            else
-            {
-                header.setText(R.string.low_header);
-                lightColor = ContextCompat.getColor(this, R.color.lowLightColor);
-                darkColor = ContextCompat.getColor(this, R.color.lowDarkColor);
-            }
-            header.setBackgroundColor(lightColor);
-            header.setGravity(Gravity.CENTER);
-            header.setTypeface(header.getTypeface(), 1);
-            header.setTextColor(ContextCompat.getColor(this, R.color.black));
-            grid.addView(header,new GridLayout.LayoutParams(GridLayout.spec(0, 1), GridLayout.spec(1+a, 1, (float)1.0)));
-            TextView sep = new TextView(this);
-            sep.setText("");
-            sep.setBackgroundColor(ContextCompat.getColor(this, R.color.black));
-            sep.setHeight(5);
-            grid.addView(sep,new GridLayout.LayoutParams(GridLayout.spec(1, 1), GridLayout.spec(1+a, 1, (float)1.0)));
-            for (int b=0; b<sortedTable.first.size(); b++)
-            {
-                TextView cell = new TextView(this);
-                cell.setText(sortedTable.second.get(a).second.get(b));
-                if (b%2==1)
+                TextView name = new TextView(this);
+                name.setText(sortedTable.first.get(a));
+                if (a % 2 == 1)
                 {
-                    cell.setBackgroundColor(darkColor);
-                }
-                else
+                    name.setBackgroundColor(ContextCompat.getColor(this, R.color.nameDarkColor));
+                } else
                 {
-                    cell.setBackgroundColor(lightColor);
+                    name.setBackgroundColor(ContextCompat.getColor(this, R.color.nameLightColor));
                 }
-                cell.setGravity(Gravity.CENTER);
-                grid.addView(cell,new GridLayout.LayoutParams(GridLayout.spec(2+b, 1), GridLayout.spec(1+a, 1, (float)1.0)));
+                name.setGravity(Gravity.CENTER);
+                name.setTypeface(name.getTypeface(), 1);
+                name.setTextColor(ContextCompat.getColor(this, R.color.black));
+                grid.addView(name, new GridLayout.LayoutParams(GridLayout.spec(2 + messOffs + a, 1), GridLayout.spec(0, 1, (float) 1.0)));
+            }
+            // set rest of table column by column
+            for (int a = 0; a < sortedTable.second.size(); a++)
+            {
+                // set header
+                TextView header = new TextView(this);
+                int lightColor, darkColor;
+                if (sortedTable.second.get(a).first == 0)
+                {
+                    header.setText(R.string.high_header);
+                    lightColor = ContextCompat.getColor(this, R.color.highLightColor);
+                    darkColor = ContextCompat.getColor(this, R.color.highDarkColor);
+                } else
+                {
+                    header.setText(R.string.low_header);
+                    lightColor = ContextCompat.getColor(this, R.color.lowLightColor);
+                    darkColor = ContextCompat.getColor(this, R.color.lowDarkColor);
+                }
+                header.setBackgroundColor(lightColor);
+                header.setGravity(Gravity.CENTER);
+                header.setTypeface(header.getTypeface(), 1);
+                header.setTextColor(ContextCompat.getColor(this, R.color.black));
+                grid.addView(header, new GridLayout.LayoutParams(GridLayout.spec(messOffs , 1), GridLayout.spec(1 + a, 1, (float) 1.0)));
+                TextView sep = new TextView(this);
+                sep.setText("");
+                sep.setBackgroundColor(ContextCompat.getColor(this, R.color.black));
+                sep.setHeight(5);
+                grid.addView(sep, new GridLayout.LayoutParams(GridLayout.spec(1 + messOffs, 1), GridLayout.spec(1 + a, 1, (float) 1.0)));
+                for (int b = 0; b < sortedTable.first.size(); b++)
+                {
+                    TextView cell = new TextView(this);
+                    cell.setText(sortedTable.second.get(a).second.get(b));
+                    if (b % 2 == 1)
+                    {
+                        cell.setBackgroundColor(darkColor);
+                    } else
+                    {
+                        cell.setBackgroundColor(lightColor);
+                    }
+                    cell.setGravity(Gravity.CENTER);
+                    grid.addView(cell, new GridLayout.LayoutParams(GridLayout.spec(2 + messOffs  + b, 1), GridLayout.spec(1 + a, 1, (float) 1.0)));
+                }
             }
         }
+        grid.setForegroundGravity(Gravity.CENTER);
     }
 
     private Pair<List<String>,List<Pair<Integer,List<String>>>> sortAndArrange
-            (List<Pair<String,List<List<Pair<Integer,Integer>>>>> table)
+            (List<SPair<String,List<List<SPair<Integer,Integer>>>>> table)
     {
-        List<String> names = new ArrayList<>(table.size());
-        for (int a=0; a<table.size(); a++)
+        List<SPair<String,List<List<SPair<Integer,Integer>>>>> tablecopy = deepCopy(table);
+        List<String> names = new ArrayList<>(tablecopy.size());
+        for (int a=0; a<tablecopy.size(); a++)
         {
-            names.add(table.get(a).first);
+            names.add(tablecopy.get(a).first);
         }
         List<Pair<Integer,List<String>>> sTable = new ArrayList<>();
         Pair<List<Integer>,List<List<Integer>>> currentMin;
-        Pair<Integer,Integer> tempTime;
+        SPair<Integer,Integer> tempTime;
         int hiLo, count = 0;
-        boolean allEmpty = false;
-        boolean[] empty = new boolean[table.size()];
-        for (int a=0; a<table.size(); a++)
+        boolean allEmpty = true;
+        boolean[] empty = new boolean[tablecopy.size()];
+        for (int a=0; a<tablecopy.size(); a++)
         {
-            empty[a] = false;
+            empty[a] = tablecopy.get(a).second.isEmpty();
+            allEmpty = allEmpty && empty[a];
         }
         while (!allEmpty)
         {
-            currentMin = findMinimumEntries(table);
+            currentMin = findMinimumEntries(tablecopy);
             hiLo = currentMin.first.get(1);
-            sTable.add(new Pair<Integer, List<String>>(hiLo, new ArrayList<String>(table.size())));
-            for (int a=0; a<table.size(); a++)
+            sTable.add(new Pair<Integer, List<String>>(hiLo, new ArrayList<String>(tablecopy.size())));
+            for (int a=0; a<tablecopy.size(); a++)
             {
                 if (currentMin.second.get(a).get(0)==hiLo)
                 {
-                    tempTime = table.get(a).second.get(hiLo).get(currentMin.second.get(a).get(1));
+                    tempTime = tablecopy.get(a).second.get(hiLo).get(currentMin.second.get(a).get(1));
                     sTable.get(count).second.add(a,String.format(Locale.US,"%02d",tempTime.first).concat(":").concat(String.format(Locale.US,"%02d",tempTime.second)));
-                    table.get(a).second.get(hiLo).remove((int)currentMin.second.get(a).get(1));
-                    if((table.get(a).second.get(hiLo).size()==0)&&(table.get(a).second.get((hiLo+1)%2).size()==0))
+                    tablecopy.get(a).second.get(hiLo).remove((int)currentMin.second.get(a).get(1));
+                    if((tablecopy.get(a).second.get(hiLo).size()==0)&&(tablecopy.get(a).second.get((hiLo+1)%2).size()==0))
                     {
-                        table.get(a).second.clear();
+                        tablecopy.get(a).second.clear();
                         empty[a] = true;
                     }
                 }
@@ -603,7 +744,7 @@ public class MainActivity extends AppCompatActivity
                 }
             }
             allEmpty = true;
-            for (int a=0; a<table.size()-1; a++)
+            for (int a=0; a<tablecopy.size(); a++)
             {
                 allEmpty = allEmpty && empty[a];
             }
@@ -612,21 +753,39 @@ public class MainActivity extends AppCompatActivity
         return new Pair<>(names,sTable);
     }
 
-    private Pair<List<Integer>,List<List<Integer>>> findMinimumEntries(List<Pair<String,List<List<Pair<Integer,Integer>>>>> table)
+    private List<SPair<String,List<List<SPair<Integer,Integer>>>>> deepCopy(List<SPair<String, List<List<SPair<Integer, Integer>>>>> table)
+    {
+        List<SPair<String,List<List<SPair<Integer,Integer>>>>> cTable = new ArrayList<>(table.size());
+        for (int a=0; a<table.size(); a++)
+        {
+            cTable.add(new SPair<String,List<List<SPair<Integer,Integer>>>>(table.get(a).first,new ArrayList<List<SPair<Integer, Integer>>>(table.get(a).second.size())));
+            for (int b=0; b<table.get(a).second.size(); b++)
+            {
+                cTable.get(a).second.add(new ArrayList<SPair<Integer, Integer>>(table.get(a).second.get(b).size()));
+                for (int c=0; c<table.get(a).second.get(b).size(); c++)
+                {
+                    cTable.get(a).second.get(b).add(new SPair<>(table.get(a).second.get(b).get(c).first,table.get(a).second.get(b).get(c).second));
+                }
+            }
+        }
+        return cTable;
+    }
+
+    private Pair<List<Integer>,List<List<Integer>>> findMinimumEntries(List<SPair<String,List<List<SPair<Integer,Integer>>>>> table)
     {
         List<Integer> totalMin = new ArrayList<>(3);
         totalMin.add(0,-1);
         totalMin.add(1,-1);
         totalMin.add(2,-1);
         List<List<Integer>> nameMin = new ArrayList<>(table.size());
-        Pair<Integer,Integer> totalMinVal = new Pair<>(24,0);
-        Pair<Integer,Integer> currentMinVal;
+        SPair<Integer,Integer> totalMinVal = new SPair<>(24,0);
+        SPair<Integer,Integer> currentMinVal;
         for (int a=0; a<table.size(); a++)
         {
             nameMin.add(new ArrayList<Integer>(2));
             nameMin.get(a).add(0,-1);
             nameMin.get(a).add(1,-1);
-            currentMinVal = new Pair<>(24,0);
+            currentMinVal = new SPair<>(24,0);
             for (int b=0; b<table.get(a).second.size(); b++)
             {
                 for (int c=0; c<table.get(a).second.get(b).size(); c++)
@@ -651,7 +810,7 @@ public class MainActivity extends AppCompatActivity
     }
 
     // first-second
-    private int compareTimes(Pair<Integer,Integer> first, Pair<Integer,Integer> second)
+    private int compareTimes(SPair<Integer,Integer> first, SPair<Integer,Integer> second)
     {
         return (first.first-second.first)*60 + first.second - second.second;
     }

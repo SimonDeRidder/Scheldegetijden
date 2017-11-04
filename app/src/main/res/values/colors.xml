@@ -10,4 +10,5 @@
     <color type="color" name="lowLightColor">#a0a0ff</color>
     <color type="color" name="lowDarkColor">#8080e0</color>
     <color type="color" name="black">#000000</color>
+    <color type="color" name="error">#e00000</color>
 </resources>
